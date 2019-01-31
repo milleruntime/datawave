@@ -22,7 +22,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.client.Scanner;
-import org.apache.accumulo.core.client.impl.ScannerOptions;
+import org.apache.accumulo.core.clientImpl.ScannerOptions;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;

@@ -16,7 +16,7 @@ import org.apache.accumulo.core.client.admin.SecurityOperations;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.apache.accumulo.core.trace.DistributedTrace;
 import org.apache.accumulo.core.util.Pair;
-import org.apache.accumulo.core.zookeeper.ZooUtil;
+import org.apache.accumulo.fate.zookeeper.ZooUtil;
 import org.apache.accumulo.tracer.AsyncSpanReceiver;
 import org.apache.accumulo.tracer.ZooTraceClient;
 import org.apache.commons.lang.mutable.MutableInt;
@@ -137,7 +137,7 @@ public class AccumuloConnectionFactoryBean implements AccumuloConnectionFactory 
                 ZooKeeperInstance instance = new ZooKeeperInstance(zkConfig);
                 Map<String,String> confMap = new HashMap<>();
                 confMap.put(DistributedTrace.TRACER_ZK_HOST, instance.getZooKeepers());
-                confMap.put(DistributedTrace.TRACER_ZK_PATH, ZooUtil.getRoot(instance) + Constants.ZTRACERS);
+                confMap.put(DistributedTrace.TRACER_ZK_PATH, ZooUtil.getRoot(instance.getInstanceID()) + Constants.ZTRACERS);
                 confMap.put(DistributedTrace.TRACE_HOST_PROPERTY, InetAddress.getLocalHost().getHostName());
                 confMap.put(DistributedTrace.TRACE_SERVICE_PROPERTY, appName);
                 confMap.put(AsyncSpanReceiver.SEND_TIMER_MILLIS, "1000");

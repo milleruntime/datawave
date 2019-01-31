@@ -168,12 +168,17 @@ public class PropogatingIteratorTest {
         AccumuloConfiguration conf;
         private boolean major;
         
+        @Override
+        public boolean isUserCompaction() {
+            return false;
+        }
+        
         public MockIteratorEnvironment(AccumuloConfiguration conf) {
             this.conf = conf;
         }
         
         public MockIteratorEnvironment(boolean major) {
-            this.conf = AccumuloConfiguration.getDefaultConfiguration();
+            this.conf = null;
             this.major = major;
         }
         

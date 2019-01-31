@@ -19,7 +19,7 @@ public class BulkIteratorEnvironment implements IteratorEnvironment {
     
     public BulkIteratorEnvironment(IteratorScope scope) {
         this.scope = scope;
-        this.conf = AccumuloConfiguration.getDefaultConfiguration();
+        this.conf = null;
     }
     
     @Override
@@ -35,6 +35,11 @@ public class BulkIteratorEnvironment implements IteratorEnvironment {
     @Override
     public boolean isFullMajorCompaction() {
         throw new UnsupportedOperationException();
+    }
+    
+    @Override
+    public boolean isUserCompaction() {
+        return false;
     }
     
     @Override

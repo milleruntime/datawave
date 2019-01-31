@@ -26,7 +26,7 @@ import datawave.ingest.input.reader.EventRecordReader;
 import datawave.ingest.input.reader.LongLineEventRecordReader;
 
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
-import org.apache.accumulo.core.client.impl.Credentials;
+import org.apache.accumulo.core.clientImpl.Credentials;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;

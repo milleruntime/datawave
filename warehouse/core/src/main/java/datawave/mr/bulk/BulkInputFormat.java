@@ -2,7 +2,6 @@ package datawave.mr.bulk;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.ArrayList;
@@ -17,13 +16,6 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.UUID;
 
-import datawave.ingest.data.config.ingest.AccumuloHelper;
-import datawave.mr.bulk.split.DefaultLocationStrategy;
-import datawave.mr.bulk.split.DefaultSplitStrategy;
-import datawave.mr.bulk.split.LocationStrategy;
-import datawave.mr.bulk.split.RangeSplit;
-import datawave.mr.bulk.split.SplitStrategy;
-
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.BatchScanner;
@@ -33,38 +25,20 @@ import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.Instance;
 import org.apache.accumulo.core.client.IsolatedScanner;
 import org.apache.accumulo.core.client.IteratorSetting;
-import org.apache.accumulo.core.client.RowIterator;
-import org.apache.accumulo.core.client.Scanner;
-import org.apache.accumulo.core.client.TableDeletedException;
 import org.apache.accumulo.core.client.TableNotFoundException;
-import org.apache.accumulo.core.client.TableOfflineException;
 import org.apache.accumulo.core.client.ZooKeeperInstance;
-import org.apache.accumulo.core.client.impl.ClientContext;
-import org.apache.accumulo.core.client.impl.Credentials;
-import org.apache.accumulo.core.client.impl.Tables;
-import org.apache.accumulo.core.client.impl.TabletLocator;
-import org.apache.accumulo.core.client.mapreduce.InputFormatBase;
-import datawave.accumulo.inmemory.InMemoryInstance;
-import datawave.accumulo.inmemory.impl.InMemoryTabletLocator;
+import org.apache.accumulo.core.client.mapreduce.AccumuloInputFormat;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
-import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.data.Key;
-import org.apache.accumulo.core.data.impl.KeyExtent;
-import org.apache.accumulo.core.data.PartialKey;
 import org.apache.accumulo.core.data.Range;
 import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.SortedKeyValueIterator;
 import org.apache.accumulo.core.iterators.user.RegExFilter;
 import org.apache.accumulo.core.iterators.user.VersioningIterator;
-import org.apache.accumulo.core.master.state.tables.TableState;
-import org.apache.accumulo.core.metadata.MetadataTable;
-import org.apache.accumulo.core.metadata.schema.MetadataSchema;
 import org.apache.accumulo.core.security.Authorizations;
 import org.apache.accumulo.core.security.TablePermission;
-import datawave.common.util.ArgumentChecker;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.core.util.TextUtil;
-import org.apache.accumulo.fate.util.UtilWaitThread;
 import org.apache.accumulo.core.util.format.DefaultFormatter;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.conf.Configuration;
@@ -75,21 +49,24 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
+import datawave.accumulo.inmemory.InMemoryInstance;
+import datawave.common.util.ArgumentChecker;
+import datawave.mr.bulk.split.DefaultLocationStrategy;
+import datawave.mr.bulk.split.DefaultSplitStrategy;
+import datawave.mr.bulk.split.LocationStrategy;
+import datawave.mr.bulk.split.RangeSplit;
+import datawave.mr.bulk.split.SplitStrategy;
 
-public class BulkInputFormat extends InputFormat<Key,Value> {
+public class BulkInputFormat extends AccumuloInputFormat {
     
-    protected static final Logger log = Logger.getLogger(InputFormatBase.class);
+    protected static final Logger log = Logger.getLogger(AccumuloInputFormat.class);
     
     protected static final String PREFIX = BulkInputFormat.class.getSimpleName();
     protected static final String INPUT_INFO_HAS_BEEN_SET = PREFIX + ".configured";
@@ -936,104 +913,6 @@ public class BulkInputFormat extends InputFormat<Key,Value> {
         }
     }
     
-    Map<String,Map<KeyExtent,List<Range>>> binOfflineTable(JobContext job, String tableName, List<Range> ranges) throws TableNotFoundException,
-                    AccumuloException, AccumuloSecurityException, IOException {
-        
-        Map<String,Map<KeyExtent,List<Range>>> binnedRanges = new HashMap<>();
-        
-        Instance instance = getInstance(job.getConfiguration());
-        Connector conn = instance.getConnector(getUsername(job.getConfiguration()), new PasswordToken(getPassword(job.getConfiguration())));
-        String tableId = Tables.getTableId(instance, tableName);
-        
-        if (Tables.getTableState(instance, tableId) != TableState.OFFLINE) {
-            Tables.clearCache(instance);
-            if (Tables.getTableState(instance, tableId) != TableState.OFFLINE) {
-                throw new AccumuloException("Table is online " + tableName + "(" + tableId + ") cannot scan table in offline mode ");
-            }
-        }
-        
-        for (Range range : ranges) {
-            Text startRow;
-            
-            if (range.getStartKey() != null)
-                startRow = range.getStartKey().getRow();
-            else
-                startRow = new Text();
-            
-            Range metadataRange = new Range(new KeyExtent(tableId, startRow, null).getMetadataEntry(), true, null, false);
-            Scanner scanner = conn.createScanner(MetadataTable.NAME, Authorizations.EMPTY);
-            MetadataSchema.TabletsSection.TabletColumnFamily.PREV_ROW_COLUMN.fetch(scanner);
-            scanner.fetchColumnFamily(MetadataSchema.TabletsSection.LastLocationColumnFamily.NAME);
-            scanner.fetchColumnFamily(MetadataSchema.TabletsSection.CurrentLocationColumnFamily.NAME);
-            scanner.fetchColumnFamily(MetadataSchema.TabletsSection.FutureLocationColumnFamily.NAME);
-            scanner.setRange(metadataRange);
-            
-            RowIterator rowIter = new RowIterator(scanner);
-            
-            KeyExtent lastExtent = null;
-            
-            while (rowIter.hasNext()) {
-                Iterator<Entry<Key,Value>> row = rowIter.next();
-                String last = "";
-                KeyExtent extent = null;
-                String location = null;
-                
-                while (row.hasNext()) {
-                    Entry<Key,Value> entry = row.next();
-                    Key key = entry.getKey();
-                    
-                    if (key.getColumnFamily().equals(MetadataSchema.TabletsSection.LastLocationColumnFamily.NAME)) {
-                        last = entry.getValue().toString();
-                    }
-                    
-                    if (key.getColumnFamily().equals(MetadataSchema.TabletsSection.CurrentLocationColumnFamily.NAME)
-                                    || key.getColumnFamily().equals(MetadataSchema.TabletsSection.FutureLocationColumnFamily.NAME)) {
-                        location = entry.getValue().toString();
-                    }
-                    
-                    if (MetadataSchema.TabletsSection.TabletColumnFamily.PREV_ROW_COLUMN.hasColumns(key)) {
-                        extent = new KeyExtent(key.getRow(), entry.getValue());
-                    }
-                    
-                }
-                
-                if (location != null)
-                    return null;
-                
-                if (!extent.getTableId().equals(tableId)) {
-                    throw new AccumuloException("Saw unexpected table Id " + tableId + " " + extent);
-                }
-                
-                if (lastExtent != null && !extent.isPreviousExtent(lastExtent)) {
-                    throw new AccumuloException(" " + lastExtent + " is not previous extent " + extent);
-                }
-                
-                Map<KeyExtent,List<Range>> tabletRanges = binnedRanges.get(last);
-                if (tabletRanges == null) {
-                    tabletRanges = new HashMap<>();
-                    binnedRanges.put(last, tabletRanges);
-                }
-                
-                List<Range> rangeList = tabletRanges.get(extent);
-                if (rangeList == null) {
-                    rangeList = new ArrayList<>();
-                    tabletRanges.put(extent, rangeList);
-                }
-                
-                rangeList.add(range);
-                
-                if (extent.getEndRow() == null || range.afterEndKey(new Key(extent.getEndRow()).followingKey(PartialKey.ROW))) {
-                    break;
-                }
-                
-                lastExtent = extent;
-            }
-            
-        }
-        
-        return binnedRanges;
-    }
-    
     protected static SplitStrategy getSplitStrategy(Configuration conf) {
         
         try {
@@ -1055,158 +934,6 @@ public class BulkInputFormat extends InputFormat<Key,Value> {
             log.error(e);
         }
         return new DefaultLocationStrategy();
-    }
-    
-    /**
-     * Initializes an Accumulo {@link TabletLocator} based on the configuration.
-     * 
-     * @param conf
-     *            the Hadoop configuration object
-     * @return an accumulo tablet locator
-     * @throws TableNotFoundException
-     *             if the table name set on the configuration doesn't exist
-     * @throws IOException
-     *             if the input format is unable to read the password file from the FileSystem
-     */
-    protected static TabletLocator getTabletLocator(Configuration conf) throws TableNotFoundException, IOException {
-        if (conf.getBoolean(MOCK, false))
-            return new InMemoryTabletLocator();
-        Instance instance = getInstance(conf);
-        String tableName = getTablename(conf);
-        Credentials credentials = new Credentials(getUsername(conf), new PasswordToken(getPassword(conf)));
-        return TabletLocator.getLocator(new ClientContext(instance, credentials, AccumuloConfiguration.getDefaultConfiguration()),
-                        Tables.getTableId(instance, tableName));
-    }
-    
-    /**
-     * Read the metadata table to get tablets and match up ranges to them.
-     */
-    public List<InputSplit> getSplits(JobContext job) throws IOException {
-        log.setLevel(getLogLevel(job.getConfiguration()));
-        validateOptions(job.getConfiguration());
-        
-        AccumuloHelper cbHelper = new AccumuloHelper();
-        cbHelper.setup(job.getConfiguration());
-        
-        String tableName = getTablename(job.getConfiguration());
-        boolean autoAdjust = getAutoAdjustRanges(job.getConfiguration());
-        List<Range> ranges = autoAdjust ? Range.mergeOverlapping(getRanges(job.getConfiguration())) : getRanges(job.getConfiguration());
-        
-        if (ranges.isEmpty()) {
-            ranges = new ArrayList<>(1);
-            ranges.add(new Range());
-        }
-        
-        // get the metadata information for these ranges
-        Map<String,Map<KeyExtent,List<Range>>> binnedRanges = new HashMap<>();
-        TabletLocator tl;
-        try {
-            if (isOfflineScan(job.getConfiguration())) {
-                binnedRanges = binOfflineTable(job, tableName, ranges);
-                while (binnedRanges == null) {
-                    // Some tablets were still online, try again
-                    UtilWaitThread.sleep(100 + (int) (Math.random() * 100)); // sleep randomly between 100 and 200 ms
-                    binnedRanges = binOfflineTable(job, tableName, ranges);
-                }
-            } else {
-                Instance instance = getInstance(job.getConfiguration());
-                String tableId = null;
-                tl = getTabletLocator(job.getConfiguration());
-                // its possible that the cache could contain complete, but old information about a tables tablets... so clear it
-                tl.invalidateCache();
-                while (!tl.binRanges(new ClientContext(instance, cbHelper.getCredentials(), AccumuloConfiguration.getDefaultConfiguration()), ranges,
-                                binnedRanges).isEmpty()) {
-                    if (!(instance instanceof InMemoryInstance)) {
-                        if (tableId == null)
-                            tableId = Tables.getTableId(instance, tableName);
-                        if (!Tables.exists(instance, tableId))
-                            throw new TableDeletedException(tableId);
-                        if (Tables.getTableState(instance, tableId) == TableState.OFFLINE)
-                            throw new TableOfflineException(instance, tableId);
-                    }
-                    binnedRanges.clear();
-                    log.warn("Unable to locate bins for specified ranges. Retrying.");
-                    UtilWaitThread.sleep(100 + (int) (Math.random() * 100)); // sleep randomly between 100 and 200 ms
-                    tl.invalidateCache();
-                }
-                
-                clipRanges(binnedRanges);
-            }
-        } catch (Exception e) {
-            throw new IOException(e);
-        }
-        
-        ArrayList<InputSplit> splits = new ArrayList<>(ranges.size());
-        
-        HashMap<String,String> hostNameCache = new HashMap<>();
-        LocationStrategy strategy = null;
-        
-        strategy = getLocationStrategy(job.getConfiguration());
-        
-        Multimap<RangeSplit,Range> map = ArrayListMultimap.create();
-        for (Entry<String,Map<KeyExtent,List<Range>>> tserverBin : binnedRanges.entrySet()) {
-            String ip = tserverBin.getKey().split(":", 2)[0];
-            String location = hostNameCache.get(ip);
-            
-            if (log.isDebugEnabled())
-                log.debug("ip is " + ip + "  " + location);
-            
-            if (location == null) {
-                InetAddress inetAddress = InetAddress.getByName(ip);
-                location = inetAddress.getHostName();
-                
-                hostNameCache.put(ip, location);
-            }
-            
-            // location defines the rack
-            RangeSplit rangeSplit = new RangeSplit(strategy, tableName, new String[] {location});
-            
-            for (Entry<KeyExtent,List<Range>> extentRanges : tserverBin.getValue().entrySet()) {
-                if (log.isDebugEnabled())
-                    log.debug("Assigning " + extentRanges.getValue() + " to " + location);
-                map.get(rangeSplit).addAll(extentRanges.getValue());
-            }
-            
-        }
-        
-        log.info("There are approximately " + map.keySet().size() + " keys ");
-        
-        log.info("There are approximately " + map.size() + " values ");
-        
-        for (RangeSplit split : map.keySet()) {
-            // Iterable<List<Range>> rangeIter = splitter.partition(map.get(split));
-            // for (List<Range> rangeList : rangeIter) {
-            // RangeSplit newSplit = (RangeSplit) split.clone();
-            // newSplit.addRanges(rangeList);
-            split.addRanges(map.get(split));
-            splits.add(split);
-            // }
-            
-        }
-        
-        log.info("Returning splits " + splits.size());
-        return splits;
-    }
-    
-    private void clipRanges(Map<String,Map<KeyExtent,List<Range>>> binnedRanges) {
-        // truncate the ranges to within the tablets... this makes it easier to know what work
-        // needs to be redone when failures occurs and tablets have merged or split
-        Map<String,Map<KeyExtent,List<Range>>> binnedRanges2 = new HashMap<>();
-        for (Entry<String,Map<KeyExtent,List<Range>>> entry : binnedRanges.entrySet()) {
-            Map<KeyExtent,List<Range>> tabletMap = new HashMap<>();
-            binnedRanges2.put(entry.getKey(), tabletMap);
-            for (Entry<KeyExtent,List<Range>> tabletRanges : entry.getValue().entrySet()) {
-                Range tabletRange = tabletRanges.getKey().toDataRange();
-                List<Range> clippedRanges = new ArrayList<>();
-                tabletMap.put(tabletRanges.getKey(), clippedRanges);
-                for (Range range : tabletRanges.getValue())
-                    clippedRanges.add(tabletRange.clip(range));
-            }
-        }
-        
-        binnedRanges.clear();
-        binnedRanges.putAll(binnedRanges2);
-        
     }
     
     /**

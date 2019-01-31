@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.accumulo.core.client.BatchScanner;
 import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.IteratorSetting;
-import org.apache.accumulo.core.client.impl.Tables;
+import org.apache.accumulo.core.clientImpl.Tables;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.data.ByteSequence;
 import org.apache.accumulo.core.data.Key;

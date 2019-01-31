@@ -29,7 +29,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import org.apache.accumulo.core.client.BatchScanner;
-import org.apache.accumulo.core.client.impl.ScannerOptions;
+import org.apache.accumulo.core.clientImpl.ScannerOptions;
 import org.apache.accumulo.core.client.sample.SamplerConfiguration;
 import org.apache.accumulo.core.data.Column;
 import org.apache.accumulo.core.data.Key;

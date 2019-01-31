@@ -42,7 +42,7 @@ public class ConfigurableAgeOffFilterTest extends EasyMockSupport {
     @Mock
     private SortedKeyValueIterator<Key,Value> source;
     
-    private DefaultConfiguration conf = new DefaultConfiguration();
+    private DefaultConfiguration conf = null;
     
     @Before
     public void setUp() throws Exception {

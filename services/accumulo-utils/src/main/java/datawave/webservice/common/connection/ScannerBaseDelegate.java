@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.accumulo.core.client.IteratorSetting;
 import org.apache.accumulo.core.client.IteratorSetting.Column;
 import org.apache.accumulo.core.client.ScannerBase;
-import org.apache.accumulo.core.client.impl.ScannerOptions;
+import org.apache.accumulo.core.clientImpl.ScannerOptions;
 import org.apache.accumulo.core.client.sample.SamplerConfiguration;
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Value;

@@ -1,8 +1,10 @@
 package datawave.ingest.table.balancer;
 
-import com.google.common.base.Function;
+import java.util.function.Function;
 import com.google.common.collect.Iterables;
-import org.apache.accumulo.core.data.impl.KeyExtent;
+
+import org.apache.accumulo.core.clientImpl.Table;
+import org.apache.accumulo.core.dataImpl.KeyExtent;
 import org.apache.accumulo.core.master.thrift.TabletServerStatus;
 import org.apache.accumulo.core.util.Pair;
 import org.apache.accumulo.server.master.balancer.GroupBalancer;
@@ -40,7 +42,7 @@ public class ShardedTableTabletBalancer extends GroupBalancer {
     private Function<KeyExtent,String> partitioner;
     
     public ShardedTableTabletBalancer(String tableId) {
-        super(tableId);
+        super(Table.ID.of(tableId));
     }
     
     // synchronized to ensure exclusivity between getAssignments and balance calls

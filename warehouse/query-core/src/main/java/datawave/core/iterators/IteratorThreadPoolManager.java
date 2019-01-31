@@ -1,6 +1,7 @@
 package datawave.core.iterators;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -10,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.util.NamingThreadFactory;
-import org.apache.accumulo.server.client.HdfsZooInstance;
 import org.apache.accumulo.server.conf.ServerConfigurationFactory;
 import org.apache.accumulo.server.util.time.SimpleTimer;
 import org.apache.log4j.Logger;
@@ -39,7 +39,7 @@ public class IteratorThreadPoolManager {
     private IteratorThreadPoolManager() {
         // create the thread pools\
         try {
-            this.confFactory = new ServerConfigurationFactory(HdfsZooInstance.getInstance());
+            this.confFactory = null; //junk
         } catch (Throwable e) {
             log.error("Unable to get the accumulo configuration, using default thread pool sizes (" + DEFAULT_THREAD_POOL_SIZE + " per pool)");
         }
@@ -50,7 +50,7 @@ public class IteratorThreadPoolManager {
     private ThreadPoolExecutor createExecutorService(final String prop, final String name) {
         final ThreadPoolExecutor service = createExecutorService(getMaxThreads(prop), name + " (" + instanceId + ')');
         threadPools.put(name, service);
-        SimpleTimer.getInstance(AccumuloConfiguration.getDefaultConfiguration()).schedule(() -> {
+        SimpleTimer.getInstance(1).schedule(() -> {
             try {
                 
                 int max = getMaxThreads(prop);
@@ -75,9 +75,9 @@ public class IteratorThreadPoolManager {
     
     private int getMaxThreads(final String prop) {
         if (this.confFactory != null) {
-            AccumuloConfiguration conf = this.confFactory.getConfiguration();
+            AccumuloConfiguration conf = null; //junk
             Map<String,String> properties = new TreeMap<>();
-            conf.getProperties(properties, new AccumuloConfiguration.MatchFilter(prop));
+            conf.getProperties(properties, k -> Objects.equals(k, prop));
             if (properties.containsKey(prop)) {
                 return Integer.parseInt(properties.get(prop));
             }

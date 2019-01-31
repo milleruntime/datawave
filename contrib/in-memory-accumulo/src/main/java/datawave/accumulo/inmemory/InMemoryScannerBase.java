@@ -24,7 +24,7 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 
 import org.apache.accumulo.core.client.SampleNotPresentException;
-import org.apache.accumulo.core.client.impl.ScannerOptions;
+import org.apache.accumulo.core.clientImpl.ScannerOptions;
 import org.apache.accumulo.core.client.sample.SamplerConfiguration;
 import org.apache.accumulo.core.conf.AccumuloConfiguration;
 import org.apache.accumulo.core.data.ArrayByteSequence;
