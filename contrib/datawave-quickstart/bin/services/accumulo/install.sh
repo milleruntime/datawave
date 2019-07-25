@@ -50,8 +50,8 @@ else
 fi
 
 if [ ! -z "${DW_ACCUMULO_CLIENT_CONF}" ] ; then
-   echo "${DW_ACCUMULO_CLIENT_CONF}" > "${DW_ACCUMULO_CONF_DIR}/client.conf"
-   info "Accumulo client.conf written"
+   echo "${DW_ACCUMULO_CLIENT_CONF}" > "${DW_ACCUMULO_CONF_DIR}/accumulo-client.properties"
+   info "accumulo-client.properties written"
 else
    warn "No client.conf content defined! :("
 fi
@@ -85,6 +85,12 @@ if [ -n "${DW_ACCUMULO_VFS_DATAWAVE_DIR}" ] && [ "${DW_ACCUMULO_VFS_DATAWAVE_ENA
    ${HADOOP_HOME}/bin/hdfs dfs -mkdir -p "${DW_ACCUMULO_VFS_DATAWAVE_DIR}" || fatal "Failed to create ${DW_ACCUMULO_VFS_DATAWAVE_DIR}"
 fi
 
+echo "Initializing Accumulo"
+# Convert site config for 2.0
+"${ACCUMULO_HOME}"/bin/accumulo-cluster create-config
+mv "${DW_ACCUMULO_CONF_DIR}/accumulo.properties" "${DW_ACCUMULO_CONF_DIR}/accumulo-default.properties"
+"${ACCUMULO_HOME}"/bin/accumulo convert-config -x "${DW_ACCUMULO_CONF_DIR}/accumulo-site.xml" -p "${DW_ACCUMULO_CONF_DIR}/accumulo.properties"
+rm -f "${DW_ACCUMULO_CONF_DIR}/accumulo-site.xml"
 # Initialize Accumulo
 ${ACCUMULO_HOME}/bin/accumulo init \
  --clear-instance-name \

@@ -31,8 +31,8 @@ maxClientCnxns=100"
 # Accumulo config
 
 # You may override DW_ACCUMULO_DIST_URI in your env ahead of time, and set as file:///path/to/file.tar.gz for local tarball, if needed
+DW_ACCUMULO_DIST_URI=https://www.apache.org/dist/accumulo/2.0.0/accumulo-2.0.0-bin.tar.gz
 
-DW_ACCUMULO_DIST_URI="${DW_ACCUMULO_DIST_URI:-https://www.apache.org/dist/accumulo/1.9.3/accumulo-1.9.3-bin.tar.gz}"
 DW_ACCUMULO_DIST="$( downloadTarball "${DW_ACCUMULO_DIST_URI}" "${DW_ACCUMULO_SERVICE_DIR}" && echo "${tarball}" )"
 DW_ACCUMULO_BASEDIR="accumulo-install"
 DW_ACCUMULO_SYMLINK="accumulo"
@@ -46,7 +46,7 @@ alias ashell="accumulo shell -u root -p ${DW_ACCUMULO_PASSWORD}"
 # To enable, set DW_ACCUMULO_VFS_DATAWAVE_ENABLED to true. If enabled, just be aware that
 # writing all the DataWave jars to HDFS will probably slow down your install significantly
 
-DW_ACCUMULO_VFS_DATAWAVE_ENABLED=${DW_ACCUMULO_VFS_DATAWAVE_ENABLED:-false}
+DW_ACCUMULO_VFS_DATAWAVE_ENABLED=false
 DW_ACCUMULO_VFS_DATAWAVE_DIR="/datawave/accumulo-vfs-classpath"
 
 # accumulo-site.xml (Format: <property-name><space><property-value>{<newline>})
@@ -59,15 +59,18 @@ tserver.memory.maps.native.enabled false
 tserver.cache.data.size 64M
 tserver.cache.index.size 64M
 trace.token.property.password ${DW_ACCUMULO_PASSWORD}
-trace.user root
-general.classpaths \$ACCUMULO_HOME/lib/accumulo-server.jar,\n\$ACCUMULO_HOME/lib/accumulo-core.jar,\n\$ACCUMULO_HOME/lib/accumulo-start.jar,\n\$ACCUMULO_HOME/lib/accumulo-fate.jar,\n\$ACCUMULO_HOME/lib/accumulo-proxy.jar,\n\$ACCUMULO_HOME/lib/[^.].*.jar,\n\$ZOOKEEPER_HOME/zookeeper[^.].*.jar,\n\$HADOOP_CONF_DIR,\n\$HADOOP_PREFIX/share/hadoop/common/[^.].*.jar,\n\$HADOOP_PREFIX/share/hadoop/common/lib/(?!slf4j)[^.].*.jar,\n\$HADOOP_PREFIX/share/hadoop/hdfs/[^.].*.jar,\n\$HADOOP_PREFIX/share/hadoop/mapreduce/[^.].*.jar,\n\$HADOOP_PREFIX/share/hadoop/yarn/[^.].*.jar,\n\$HADOOP_PREFIX/share/hadoop/yarn/lib/jersey.*.jar"
+trace.user root"
 
 if [ "${DW_ACCUMULO_VFS_DATAWAVE_ENABLED}" != false ] ; then
   DW_ACCUMULO_SITE_CONF="${DW_ACCUMULO_SITE_CONF}
 general.vfs.context.classpath.datawave ${DW_HADOOP_DFS_URI}${DW_ACCUMULO_VFS_DATAWAVE_DIR}/.*.jar"
 fi
 
-DW_ACCUMULO_CLIENT_CONF="instance.zookeeper.host=localhost:2181"
+DW_ACCUMULO_CLIENT_CONF="instance.zookeepers=localhost:2181
+instance.name=${DW_ACCUMULO_INSTANCE_NAME}
+auth.type=${DW_ACCUMULO_PASSWORD}
+auth.principal=root
+auth.token=secret"
 
 DW_ACCUMULO_JVM_HEAPDUMP_DIR="${DW_CLOUD_DATA}/heapdumps"
 
@@ -83,8 +86,8 @@ DW_ZOOKEEPER_CMD_START="( cd ${ZOOKEEPER_HOME}/bin && ./zkServer.sh start )"
 DW_ZOOKEEPER_CMD_STOP="( cd ${ZOOKEEPER_HOME}/bin && ./zkServer.sh stop )"
 DW_ZOOKEEPER_CMD_FIND_ALL_PIDS="pgrep -f 'zookeeper.server.quorum.QuorumPeerMain'"
 
-DW_ACCUMULO_CMD_START="( cd ${ACCUMULO_HOME}/bin && ./start-all.sh )"
-DW_ACCUMULO_CMD_STOP="( cd ${ACCUMULO_HOME}/bin && ./stop-all.sh )"
+DW_ACCUMULO_CMD_START="( cd ${ACCUMULO_HOME}/bin && ./accumulo-cluster start )"
+DW_ACCUMULO_CMD_STOP="( cd ${ACCUMULO_HOME}/bin && ./accumulo-cluster stop )"
 DW_ACCUMULO_CMD_FIND_ALL_PIDS="pgrep -f 'o.start.Main master|o.start.Main tserver|o.start.Main monitor|o.start.Main gc|o.start.Main tracer'"
 
 function accumuloIsRunning() {
