@@ -76,7 +76,7 @@ public class RangeStreamScanner extends ScannerSession implements Callable<Range
     
     protected ScannerFactory scannerFactory;
     
-    @Override
+    // @Override
     protected String serviceName() {
         String id = "NoQueryId";
         if (null != settings && null != settings.getId()) {
@@ -211,7 +211,7 @@ public class RangeStreamScanner extends ScannerSession implements Callable<Range
     
     private void submitTask() {
         // wait on results. submit the task if we can
-        Future<RangeStreamScanner> future = myExecutor.submit(this);
+        Future<RangeStreamScanner> future = myExecutor.submit((Callable<RangeStreamScanner>) this);
         try {
             future.get();
         } catch (InterruptedException | ExecutionException e) {
@@ -225,7 +225,7 @@ public class RangeStreamScanner extends ScannerSession implements Callable<Range
      * @see com.google.common.util.concurrent.AbstractExecutionThreadService#run()
      */
     @Override
-    protected void run() {
+    public void run() {
         try {
             findTop();
             flush();

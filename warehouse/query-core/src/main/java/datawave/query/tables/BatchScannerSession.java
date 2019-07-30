@@ -168,7 +168,7 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         
         listenerService = Executors.newFixedThreadPool(1);
         
-        addListener(new BatchScannerListener(), listenerService);
+        addListener(new BatchScannerListener());
         
         serverFailureMap = Maps.newConcurrentMap();
         
@@ -259,13 +259,8 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         
     }
     
-    /*
-     * (non-Javadoc)
-     * 
-     * @see com.google.common.util.concurrent.AbstractExecutionThreadService#run()
-     */
     @Override
-    protected void run() throws Exception {
+    public void run() {
         try {
             if (!scannerBatches.hasNext()) {
                 if (log.isTraceEnabled())
@@ -542,90 +537,23 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         
     }
     
-    private class BatchScannerListener extends Service.Listener {
+    private class BatchScannerListener implements ServiceListener {
         private static final int MAX_WAIT = 480;
-        
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.google.common.util.concurrent.Service.Listener#starting()
-         */
+
         @Override
-        public void starting() {
-            /**
-             * Nothing to do here
-             */
-            
-        }
-        
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.google.common.util.concurrent.Service.Listener#running()
-         */
-        @Override
-        public void running() {
-            /**
-             * Nothing to do here
-             */
-            
-        }
-        
-        /*
-         * (non-Javadoc) QueryIterator
-         * 
-         * @see com.google.common.util.concurrent.Service.Listener#stopping(com. google .common.util.concurrent.Service.State)
-         */
-        @Override
-        public void stopping(State from) {
-            /**
-             * If we are in the stopping state we should shutdown the service executor
-             * 
-             */
-            if (log.isTraceEnabled())
-                log.trace("stopping from " + from);
-            switch (from) {
-                case NEW:
-                case RUNNING:
-                case STARTING:
-                    shutdownServices();
-                    break;
-                default:
-                    break;
-            }
-        }
-        
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.google.common.util.concurrent.Service.Listener#terminated(com .google.common.util.concurrent.Service.State)
-         */
-        @Override
-        public void terminated(State from) {
-            /**
-             * Shutdown the listener service executor so that we fully release resources
-             * 
-             */
-            if (log.isTraceEnabled())
-                log.trace("terminated from " + from);
+        public void stopping() {
             shutdownServices();
         }
-        
-        /*
-         * (non-Javadoc)
-         * 
-         * @see com.google.common.util.concurrent.Service.Listener#failed(com.google .common.util.concurrent.Service.State, java.lang.Throwable)
-         */
+
         @Override
-        public void failed(State from, Throwable failure) {
+        public void failed(String from, Throwable failure) {
             if (log.isTraceEnabled())
                 log.trace("failed from " + from + " " + failure);
             shutdownServices();
-            
         }
-        
+
         /**
-         * 
+         *
          */
         protected void shutdownServices() {
             service.shutdownNow();
@@ -644,7 +572,7 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
             }
         }
     }
-    
+
     @Override
     public void close() {
         stop();

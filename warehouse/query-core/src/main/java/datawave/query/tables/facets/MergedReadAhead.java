@@ -19,7 +19,7 @@ import com.google.common.util.concurrent.AbstractExecutionThreadService;
 /**
  * 
  */
-public class MergedReadAhead<T> extends AbstractExecutionThreadService implements Iterator<T>, Closeable {
+public class MergedReadAhead<T> implements Iterator<T>, Closeable, Runnable {
     
     private static final Logger log = Logger.getLogger(MergedReadAhead.class);
     
@@ -30,6 +30,8 @@ public class MergedReadAhead<T> extends AbstractExecutionThreadService implement
     protected FacetedConfiguration facetedConfig;
     
     private AtomicBoolean removeEntry = new AtomicBoolean(false);
+    private AtomicBoolean isRunning = new AtomicBoolean();
+    private AtomicBoolean started = new AtomicBoolean();
     
     public MergedReadAhead(FacetedConfiguration facetedConfig, final Iterator<T> iter, Function<T,T> functionalMerge, List<Predicate<T>> filters) {
         
@@ -43,8 +45,15 @@ public class MergedReadAhead<T> extends AbstractExecutionThreadService implement
         
         buf = QueueUtils.synchronizedQueue(new CircularFifoQueue(1));
         
-        startAndWait();
-        
+        start();
+    }
+    
+    /**
+     * Start the session
+     */
+    public void start() {
+        started.set(true);
+        isRunning.getAndSet(true);
     }
     
     /*
@@ -55,11 +64,11 @@ public class MergedReadAhead<T> extends AbstractExecutionThreadService implement
     @Override
     public boolean hasNext() {
         if (!facetedConfig.isStreaming) {
-            while (state() == State.RUNNING)
+            while (isRunning.get())
                 ;
             
         }
-        while (buf.isEmpty() && state() == State.RUNNING) {
+        while (buf.isEmpty() && isRunning.get()) {
             
         }
         
@@ -105,7 +114,7 @@ public class MergedReadAhead<T> extends AbstractExecutionThreadService implement
      */
     @Override
     public void close() throws IOException {
-        stop();
+        isRunning.set(false);
         
         if (log.isTraceEnabled()) {
             log.trace("Closing thread");
@@ -113,14 +122,9 @@ public class MergedReadAhead<T> extends AbstractExecutionThreadService implement
         
     }
     
-    /*
-     * (non-Javadoc)
-     * 
-     * @see com.google.common.util.concurrent.AbstractExecutionThreadService#run()
-     */
     @SuppressWarnings("unchecked")
     @Override
-    protected void run() throws Exception {
+    public void run() {
         while (iter.hasNext()) {
             T d = iter.next();
             if (null != d)

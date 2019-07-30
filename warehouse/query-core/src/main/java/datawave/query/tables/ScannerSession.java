@@ -1,7 +1,9 @@
 package datawave.query.tables;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
@@ -12,6 +14,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import datawave.query.tables.AccumuloResource.ResourceFactory;
 import datawave.query.tables.stats.ScanSessionStats;
@@ -40,7 +43,7 @@ import com.google.common.util.concurrent.MoreExecutors;
  * result queue is polled in the actual next() and hasNext() calls. Note that the uncaughtExceptionHandler from the Query is used to pass exceptions up which
  * will also fail the overall query if something happens. If this is not desired then a local handler should be set.
  */
-public class ScannerSession extends AbstractExecutionThreadService implements Iterator<Entry<Key,Value>> {
+public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     
     /**
      * last seen key, used for moving across the sliding window of ranges.
@@ -114,9 +117,9 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
     private static final Logger log = Logger.getLogger(ScannerSession.class);
     
     protected ScanSessionStats stats = null;
-    
+
     protected ExecutorService statsListener = null;
-    
+
     protected boolean accrueStats;
     
     protected AccumuloResource delegatedResource = null;
@@ -124,6 +127,10 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
     protected boolean isFair = true;
     
     protected QueryUncaughtExceptionHandler uncaughtExceptionHandler = null;
+    
+    protected AtomicBoolean started = new AtomicBoolean();
+    protected AtomicBoolean running = new AtomicBoolean();
+    private List<ServiceListener> listeners = Collections.emptyList();
     
     /**
      * Constructor
@@ -185,14 +192,14 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
         delegatedResourceInitializer = RunningResource.class;
         
     }
-    
+
     /**
      * overridden in order to set the UncaughtExceptionHandler on the Thread that is created to run the ScannerSession
      */
-    @Override
+    //TODO set the thread name
     protected Executor executor() {
         return command -> {
-            String name = serviceName();
+            String name = this.getClass().getSimpleName();
             Preconditions.checkNotNull(name);
             Preconditions.checkNotNull(command);
             Thread result = MoreExecutors.platformThreadFactory().newThread(command);
@@ -204,6 +211,11 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
             }
             result.start();
         };
+    }
+
+    public synchronized boolean isRunning() {
+        boolean isRunning = running.get();
+        return isRunning;
     }
     
     /**
@@ -259,6 +271,34 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
         return false;
     }
     
+    /**
+     * Start the session
+     */
+    public synchronized void start() {
+        if (!listeners.isEmpty()) {
+            listeners.forEach(ServiceListener::starting);
+        }
+        running.set(true);
+        started.set(true);
+    }
+
+    /**
+     * Stop the session
+     */
+    public synchronized void stop() {
+        if (!listeners.isEmpty()) {
+            listeners.forEach(ServiceListener::stopping);
+        }
+        running.set(false);
+    }
+
+    public void addListener(ServiceListener listener) {
+        if (listeners.isEmpty()) {
+            listeners = new ArrayList<>();
+        }
+        this.listeners.add(listener);
+    }
+    
     /*
      * (non-Javadoc)
      * 
@@ -274,13 +314,12 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
          */
         
         // if we are new, let's start and wait
-        if (state() == State.NEW) {
+        if (!started.get()) {
             // we have just started, so let's start and wait
             // until we've completed the start process
             if (null != stats)
                 initializeTimers();
-            startAndWait();
-            
+            start();
         }
         
         // isFlushNeeded is only in the case of when we are finished
@@ -294,7 +333,7 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
             
             while (null == currentEntry && (isRunning() || !resultQueue.isEmpty() || ((isFlushNeeded = flushNeeded()) == true))) {
                 
-                log.trace("hasNext" + isRunning());
+                // log.trace("hasNext" + isRunning());
                 
                 try {
                     /**
@@ -559,7 +598,7 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
      * Note that this method must set exceptions on the uncaughtExceptionHandler, otherwise any failures will be completed ignored/dropped.
      */
     @Override
-    protected void run() throws Exception {
+    public void run() {
         try {
             while (isRunning()) {
                 
@@ -657,7 +696,7 @@ public class ScannerSession extends AbstractExecutionThreadService implements It
             Preconditions.checkArgument(this.stats == null);
             this.stats = stats;
             statsListener = Executors.newFixedThreadPool(1);
-            addListener(new StatsListener(stats, statsListener), statsListener);
+            addListener(new StatsListener(stats, statsListener));
         }
         
         return this;
