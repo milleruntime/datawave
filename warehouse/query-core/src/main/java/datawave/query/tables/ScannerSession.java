@@ -117,9 +117,9 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     private static final Logger log = Logger.getLogger(ScannerSession.class);
     
     protected ScanSessionStats stats = null;
-
+    
     protected ExecutorService statsListener = null;
-
+    
     protected boolean accrueStats;
     
     protected AccumuloResource delegatedResource = null;
@@ -192,11 +192,11 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
         delegatedResourceInitializer = RunningResource.class;
         
     }
-
+    
     /**
      * overridden in order to set the UncaughtExceptionHandler on the Thread that is created to run the ScannerSession
      */
-    //TODO set the thread name
+    // TODO set the thread name
     protected Executor executor() {
         return command -> {
             String name = this.getClass().getSimpleName();
@@ -212,10 +212,12 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
             result.start();
         };
     }
-
-    public synchronized boolean isRunning() {
-        boolean isRunning = running.get();
-        return isRunning;
+    
+    /**
+     * We shouldn't need to synchronize unless we care if the value changes
+     */
+    public boolean isRunning() {
+        return running.get();
     }
     
     /**
@@ -281,7 +283,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
         running.set(true);
         started.set(true);
     }
-
+    
     /**
      * Stop the session
      */
@@ -291,7 +293,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
         }
         running.set(false);
     }
-
+    
     public void addListener(ServiceListener listener) {
         if (listeners.isEmpty()) {
             listeners = new ArrayList<>();

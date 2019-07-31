@@ -30,7 +30,7 @@ public class MergedReadAhead<T> implements Iterator<T>, Closeable, Runnable {
     protected FacetedConfiguration facetedConfig;
     
     private AtomicBoolean removeEntry = new AtomicBoolean(false);
-    private AtomicBoolean isRunning = new AtomicBoolean();
+    private AtomicBoolean running = new AtomicBoolean();
     private AtomicBoolean started = new AtomicBoolean();
     
     public MergedReadAhead(FacetedConfiguration facetedConfig, final Iterator<T> iter, Function<T,T> functionalMerge, List<Predicate<T>> filters) {
@@ -51,9 +51,23 @@ public class MergedReadAhead<T> implements Iterator<T>, Closeable, Runnable {
     /**
      * Start the session
      */
-    public void start() {
+    public synchronized void start() {
+        running.set(true);
         started.set(true);
-        isRunning.getAndSet(true);
+    }
+    
+    /**
+     * Stop the session
+     */
+    public synchronized void stop() {
+        running.set(false);
+    }
+    
+    /**
+     * We shouldn't need to synchronize unless we care if the value changes
+     */
+    public boolean isRunning() {
+        return running.get();
     }
     
     /*
@@ -64,11 +78,11 @@ public class MergedReadAhead<T> implements Iterator<T>, Closeable, Runnable {
     @Override
     public boolean hasNext() {
         if (!facetedConfig.isStreaming) {
-            while (isRunning.get())
+            while (running.get())
                 ;
             
         }
-        while (buf.isEmpty() && isRunning.get()) {
+        while (buf.isEmpty() && running.get()) {
             
         }
         
@@ -114,7 +128,7 @@ public class MergedReadAhead<T> implements Iterator<T>, Closeable, Runnable {
      */
     @Override
     public void close() throws IOException {
-        isRunning.set(false);
+        stop();
         
         if (log.isTraceEnabled()) {
             log.trace("Closing thread");

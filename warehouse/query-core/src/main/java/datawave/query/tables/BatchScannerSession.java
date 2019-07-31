@@ -539,19 +539,19 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
     
     private class BatchScannerListener implements ServiceListener {
         private static final int MAX_WAIT = 480;
-
+        
         @Override
         public void stopping() {
             shutdownServices();
         }
-
+        
         @Override
         public void failed(String from, Throwable failure) {
             if (log.isTraceEnabled())
                 log.trace("failed from " + from + " " + failure);
             shutdownServices();
         }
-
+        
         /**
          *
          */
@@ -572,7 +572,7 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
             }
         }
     }
-
+    
     @Override
     public void close() {
         stop();
