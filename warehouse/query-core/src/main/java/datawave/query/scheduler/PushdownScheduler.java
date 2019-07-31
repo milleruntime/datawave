@@ -185,6 +185,7 @@ public class PushdownScheduler extends Scheduler {
      */
     @Override
     public void close() throws IOException {
+        log.info("DUDE PushdownScheduler calling close");
         if (session != null)
             scannerFactory.close(session);
         

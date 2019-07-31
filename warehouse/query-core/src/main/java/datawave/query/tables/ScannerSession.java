@@ -130,7 +130,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     
     protected AtomicBoolean started = new AtomicBoolean();
     protected AtomicBoolean running = new AtomicBoolean();
-    private List<ServiceListener> listeners = Collections.emptyList();
+    protected List<ServiceListener> listeners = Collections.emptyList();
     private Thread self;
     
     /**
@@ -197,9 +197,9 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     /**
      * set the UncaughtExceptionHandler on the Thread that is created to run the ScannerSession
      */
-    protected Thread startThread() {
+    private Thread startThread() {
         String name = this.getClass().getSimpleName();
-        Thread result = MoreExecutors.platformThreadFactory().newThread(this);
+        Thread result = Executors.defaultThreadFactory().newThread(this);
         try {
             result.setName(name);
             result.setUncaughtExceptionHandler(uncaughtExceptionHandler);
@@ -213,7 +213,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     /**
      * We shouldn't need to synchronize unless we care if the value changes
      */
-    public boolean isRunning() {
+    boolean isRunning() {
         return running.get();
     }
     
@@ -273,7 +273,9 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     /**
      * Start the session
      */
-    public synchronized void start() {
+    protected synchronized void start() {
+        log.info("DUDE lets fire it up " + this.getClass().getSimpleName());
+
         self = startThread();
         running.set(true);
         started.set(true);
@@ -285,7 +287,9 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     /**
      * Stop the session
      */
-    public synchronized void stop() {
+    protected synchronized void stop() {
+        log.info("DUDE stopping" + this.getClass().getSimpleName());
+        new Exception().printStackTrace();
         self.interrupt();
         running.set(false);
         if (!listeners.isEmpty()) {
@@ -293,7 +297,8 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
         }
     }
     
-    public void addListener(ServiceListener listener) {
+    protected void addListener(ServiceListener listener) {
+        log.info("DUDE addListener " + listener.getClass().getSimpleName() + " to " + this.getClass().getSimpleName());
         if (listeners.isEmpty()) {
             listeners = new ArrayList<>();
         }
@@ -332,7 +337,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
             if (null != stats)
                 stats.getTimer(TIMERS.HASNEXT).resume();
             
-            while (null == currentEntry && (isRunning() || !resultQueue.isEmpty() || ((isFlushNeeded = flushNeeded()) == true))) {
+            while (null == currentEntry && (isRunning() || !resultQueue.isEmpty() || flushNeeded())) {
                 
                 // log.trace("hasNext" + isRunning());
                 
@@ -340,6 +345,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
                     /**
                      * Poll for one second. We're in a do/while loop that will break iff we are no longer running or there is a current entry available.
                      */
+                    log.debug("polling results size " + resultQueue.size() + " isRunning = " + isRunning());
                     currentEntry = resultQueue.poll(getPollTime(), TimeUnit.MILLISECONDS);
                     
                 } catch (InterruptedException e) {

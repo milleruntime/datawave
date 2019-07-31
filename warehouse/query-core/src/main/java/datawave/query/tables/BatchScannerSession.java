@@ -151,7 +151,9 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         
         super(tableName, auths, delegator, maxResults, settings);
         Preconditions.checkNotNull(delegator);
-        
+        log.info("DUDE create BS");
+        new Exception().printStackTrace();
+
         localTableName = tableName;
         
         localAuths = auths;
@@ -176,20 +178,16 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         
     }
     
-    public BatchScannerSession updateThreadService(ExecutorService service) {
-        if (service != null)
-            this.service.shutdownNow();
-        this.service = service;
-        return this;
-    }
-    
     public void setScanLimit(long timeout) {
         this.scanLimitTimeout = timeout;
     }
     
     public BatchScannerSession setThreads(int threads) {
-        if (service != null)
+        if (service != null) {
             service.shutdownNow();
+            // ugh this is so bad why are we shutting down before creating???
+            //stop();
+        }
         this.threadCount = threads;
         service = new ThreadPoolExecutor(threads, threads, 120, TimeUnit.MINUTES, new LinkedBlockingQueue<>(), new BatchReaderThreadFactory(threadId, this));
         service = MoreExecutors.listeningDecorator(service);
@@ -200,7 +198,31 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         this.threadId.append(threadId);
         return this;
     }
-    
+
+    /**
+     * Maybe have to override start since we are doing our own threading here???
+     */
+    /*@Override
+    protected synchronized void start() {
+        log.info("DUDE lets fire it up " + this.getClass().getSimpleName());
+        running.set(true);
+        started.set(true);
+    }*/
+
+    /**
+     * Maybe Have to override stop since we are doing our own threading here???
+     */
+    /*@Override
+    protected synchronized void stop() {
+        log.info("DUDE stopping" + this.getClass().getSimpleName());
+        new Exception().printStackTrace();
+        System.exit(0);
+        running.set(false);
+        if (!listeners.isEmpty()) {
+            listeners.forEach(ServiceListener::stopping);
+        }
+    }*/
+
     /**
      * Sets the ranges for the given scannersession.
      * 
@@ -293,6 +315,7 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
                     Thread.sleep(10);
                     if (Thread.interrupted() || !isRunning()) {
                         service.shutdownNow();
+                        stop();
                         throw new InterruptedException("Interrupted while parking");
                     }
                 }
@@ -308,16 +331,19 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
                     
                     if (Thread.interrupted()) {
                         service.shutdownNow();
+                        stop();
                         throw new InterruptedException("Interrupted while parking");
                     }
                 } else {
                     if (log.isTraceEnabled())
                         log.trace(" no longer running");
                     service.shutdownNow();
+                    stop();
                     return;
                 }
             }
             service.shutdown();
+            stop();
             while (!service.awaitTermination(250, TimeUnit.MILLISECONDS)) {}
         } catch (Exception e) {
             uncaughtExceptionHandler.uncaughtException(Thread.currentThread().currentThread(), e);
@@ -547,8 +573,8 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
         
         @Override
         public void failed(String from, Throwable failure) {
-            if (log.isTraceEnabled())
-                log.trace("failed from " + from + " " + failure);
+            //if (log.isTraceEnabled())
+                log.debug("failed from " + from + " " + failure);
             shutdownServices();
         }
         
@@ -557,6 +583,7 @@ public class BatchScannerSession extends ScannerSession implements Iterator<Entr
          */
         protected void shutdownServices() {
             service.shutdownNow();
+            stop();
             listenerService.shutdownNow();
             int count = 0;
             try {

@@ -97,7 +97,7 @@ public class ScannerFactory {
     public synchronized BatchScanner newScanner(String tableName, Set<Authorizations> auths, int threads, Query query) throws TableNotFoundException {
         if (open) {
             BatchScanner bs = QueryScannerHelper.createBatchScanner(cxn, tableName, auths, threads, query);
-            log.debug("Created scanner " + System.identityHashCode(bs));
+            log.debug("Created BatchScanner " + System.identityHashCode(bs));
             if (log.isTraceEnabled()) {
                 log.trace("Adding instance " + bs.hashCode());
             }
@@ -241,7 +241,7 @@ public class ScannerFactory {
      */
     public void close(ScannerSession bs) {
         try {
-            log.debug("Closed session " + System.identityHashCode(bs));
+            log.info("Closed session " + System.identityHashCode(bs));
             sessionInstances.remove(bs);
             if (log.isTraceEnabled()) {
                 log.trace("Closing instance " + bs.hashCode());
