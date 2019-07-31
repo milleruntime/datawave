@@ -341,7 +341,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
                     /**
                      * Poll for one second. We're in a do/while loop that will break iff we are no longer running or there is a current entry available.
                      */
-                    currentEntry = resultQueue.poll(getPollTime(), TimeUnit.MILLISECONDS);
+                    currentEntry = resultQueue.poll(getPollTime(), TimeUnit.SECONDS);
                     
                 } catch (InterruptedException e) {
                     log.trace("hasNext" + isRunning() + " interrupted");

@@ -160,7 +160,7 @@ public class ScannerFactory {
         Preconditions.checkNotNull(wrapper);
         Preconditions.checkArgument(open, "Factory has been locked. No New scanners can be created");
         
-        log.debug("Creating limited scanner whose max threads is is " + scanQueue.getCapacity() + " and max capacity is " + maxQueue);
+        log.debug("Creating limited scanner "+ wrapper.getSimpleName() +" whose max threads is is " + scanQueue.getCapacity() + " and max capacity is " + maxQueue);
         
         ScanSessionStats stats = null;
         if (accrueStats) {
