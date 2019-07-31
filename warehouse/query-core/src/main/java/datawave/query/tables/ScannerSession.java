@@ -131,6 +131,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     protected AtomicBoolean started = new AtomicBoolean();
     protected AtomicBoolean running = new AtomicBoolean();
     private List<ServiceListener> listeners = Collections.emptyList();
+    private Thread self;
     
     /**
      * Constructor
@@ -194,23 +195,19 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
     }
     
     /**
-     * overridden in order to set the UncaughtExceptionHandler on the Thread that is created to run the ScannerSession
+     * set the UncaughtExceptionHandler on the Thread that is created to run the ScannerSession
      */
-    // TODO set the thread name
-    protected Executor executor() {
-        return command -> {
-            String name = this.getClass().getSimpleName();
-            Preconditions.checkNotNull(name);
-            Preconditions.checkNotNull(command);
-            Thread result = MoreExecutors.platformThreadFactory().newThread(command);
-            try {
-                result.setName(name);
-                result.setUncaughtExceptionHandler(uncaughtExceptionHandler);
-            } catch (SecurityException e) {
-                // OK if we can't set the name in this environment.
-            }
-            result.start();
-        };
+    protected Thread startThread() {
+        String name = this.getClass().getSimpleName();
+        Thread result = MoreExecutors.platformThreadFactory().newThread(this);
+        try {
+            result.setName(name);
+            result.setUncaughtExceptionHandler(uncaughtExceptionHandler);
+        } catch (SecurityException e) {
+            // OK if we can't set the name in this environment.
+        }
+        result.start();
+        return result;
     }
     
     /**
@@ -277,21 +274,23 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
      * Start the session
      */
     public synchronized void start() {
+        self = startThread();
+        running.set(true);
+        started.set(true);
         if (!listeners.isEmpty()) {
             listeners.forEach(ServiceListener::starting);
         }
-        running.set(true);
-        started.set(true);
     }
     
     /**
      * Stop the session
      */
     public synchronized void stop() {
+        self.interrupt();
+        running.set(false);
         if (!listeners.isEmpty()) {
             listeners.forEach(ServiceListener::stopping);
         }
-        running.set(false);
     }
     
     public void addListener(ServiceListener listener) {
@@ -341,7 +340,7 @@ public class ScannerSession implements Iterator<Entry<Key,Value>>, Runnable {
                     /**
                      * Poll for one second. We're in a do/while loop that will break iff we are no longer running or there is a current entry available.
                      */
-                    currentEntry = resultQueue.poll(getPollTime(), TimeUnit.SECONDS);
+                    currentEntry = resultQueue.poll(getPollTime(), TimeUnit.MILLISECONDS);
                     
                 } catch (InterruptedException e) {
                     log.trace("hasNext" + isRunning() + " interrupted");
